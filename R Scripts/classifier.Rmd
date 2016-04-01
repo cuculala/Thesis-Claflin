@@ -1,0 +1,91 @@
+---
+title: "classifier"
+author: "Kumar"
+date: "March 10, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+suppressMessages(library(caret))
+mut.tbl=read.csv("mutation.csv")
+feat.all = mut.tbl[,c("disease","gene","base","amino","codon","tag")]
+feat.all = feat.all[rowSums(!is.na(feat.all)) > 0, ]
+cancer_ids = with(feat.all,grep(".[cC]ancer.*",disease,ignore.case=T,perl=T))
+
+#label=with(feat.all, ifelse(grepl(".[cC]ancer.*", disease,ignore.case = T,perl=T),"Cancer","Non-Cancer"))
+#feat.all$Label=label
+#feat.all$Label=""
+feat.all[cancer_ids,]$Label="Cancer"
+feat.all[-cancer_ids,]$Label="Non-Cancer"
+feat.all$Label=as.factor(feat.all$Label)
+cleaned=feat.all[,c("disease","gene","base","amino","codon","tag","Label")]
+write.csv(cleaned, file="cleanedMutation.csv")
+
+clean.data = cleaned[,c("gene","base","amino","codon","tag","Label")]
+#provide numbers to the string columns
+l=length(unique(clean.data$gene))
+lev = unique(clean.data$gene)
+clean.data$gene = factor(clean.data$gene,levels=lev,label=1:l)
+base = unique(clean.data$base)
+amino = unique(clean.data$amino)
+tag=unique(clean.data$tag)
+clean.data$base=factor(clean.data$base,levels=base,label=1:length(base))
+clean.data$amino=factor(clean.data$amino,levels=amino,label=1:length(amino))
+clean.data$tag=factor(clean.data$tag,levels=tag,label=1:length(tag))
+
+clean.data$gene = as.numeric(levels(clean.data$gene))[clean.data$gene]
+clean.data$base = as.numeric(levels(clean.data$base))[clean.data$base]
+clean.data$amino =as.numeric(levels(clean.data$amino))[clean.data$amino]
+clean.data$tag = as.numeric(levels(clean.data$tag))[clean.data$tag]
+
+write.csv(clean.data, file="cleanNumerical.csv")
+
+cancers = clean.data[cancer_ids,]
+non.cancers=clean.data[-cancer_ids,]
+
+
+
+#create cancer non-cancer data
+train.numbers = with(cancers, createDataPartition(y = Label,p=0.8,list=F))
+cancer.train = cancers[train.numbers,]
+cancer.test=cancers[-train.numbers,]
+
+test.numbers = with(non.cancers, createDataPartition(y = Label,p=0.8,list=F))
+noncancer.train=non.cancers[test.numbers,]
+noncancer.test=non.cancers[-test.numbers,]
+
+training = rbind(cancer.train,noncancer.train)
+testing=rbind(cancer.test,noncancer.test)
+
+ctrl = trainControl(method="repeatedcv",repeats=3,number=10)
+
+my.model = train(Label~.,data=training,method="rf",trControl=ctrl,preProc=c("scale","center"),importance=T)
+predict.cancer = predict(my.model,newdata=testing)
+predict.roc = predict(my.model,newdata=testing,type="prob")
+
+confusionMatrix(predict.cancer, testing$Label)
+
+cancer.tree = rpart(Label~.,data=training)
+for.plot = as.party(cancer.tree)
+plot(for.plot)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

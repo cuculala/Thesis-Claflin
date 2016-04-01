@@ -1,0 +1,147 @@
+                     HGMD Human Mutation Analysis
+                      Kumar Lama, Dr. Ananda Mondal
+---
+title: "HGMD Human Mutation Data Analysis"
+output: html_document
+---
+List of **Databases** in the Server:
+-hgmdb_pro
+-hgmd_phenbase
+-hgmd_snp
+-hgmd_views
+
+Required Libraries 
+'''
+library(DBI)
+library(RMySQL)
+'''
+Basic analysis for table Splice
+```{r}
+#install.packages("RMySQL",type = 'source')
+
+#MySqL in R
+#Install from source, package not available 
+#Sys.setenv(PKG_CPPFLAGS = "-I/usr/local/include/mysql")
+# Sys.setenv(PKG_LIBS = "-L/usr/local/lib -lmysqlclient")
+suppressMessages(library(DBI))
+suppressMessages(library(RMySQL))
+suppressMessages(library(ggplot2))
+suppressMessages(library(dplyr))
+#Connect to database on local host
+dbcon.hgmd <- dbConnect(MySQL(),user = "root", password = "paparam", host = "localhost", db = "hgmd_pro")
+
+tables <- dbListTables(dbcon.hgmd)
+
+length(tables)
+# code to display table name, number of fields and number of records
+for (files in tables){
+  tbl.splice <- dbReadTable(conn = dbcon.hgmd, name = files) #read Table called splice from db
+  cat(paste(files,length(tbl.splice),length(tbl.splice[,1]),"\n",sep = "\t"))
+  write.table(data.frame(files,length(tbl.splice),length(tbl.splice[,1])),file="tablesInfo.csv",append=T,row.names = F,col.names = F,sep = ",")
+}
+
+tbl.splice <- dbReadTable(conn = dbcon.hgmd, name = "mutation") #read Table called splice from db
+write.csv(tbl.splice, file = "splice_tbl.csv") #save the talbe splice into a file splice_tbl.csv
+
+tbl.gene <- table(tbl.splice$gene)
+tbl.genelessthan <- tbl.gene[tbl.gene < 30 ]
+barplot(tbl.genelessthan,xlab = paste("Splice genes: ",toString(as.integer(100 *length(tbl.genelessthan)/length(tbl.gene))),"% of total",sep = " "), ylab = "Frequency < 30")
+
+gene.group <- tbl.splice%>%
+  subset(!is.na(gene))%>%
+  group_by(gene)%>%
+  summarise(count = n())
+  
+tail(gene.group[order(gene.group$count),],20) #top six high frequncy genes
+
+gene.group$gene <- 1:1978 #number the genes for plotting
+p <- ggplot(aes(x = gene, y = count), data = subset(gene.group,count > 100 )) +
+  geom_point(aes(alpha = 1/25))+
+  geom_smooth()+ xlab("gene index")+
+  ylab("frequency of the splice gene < 30")
+
+quantile(gene.group$count,probs = c(0,0.5,0.75,0.90,0.95,0.97,0.98,1))
+summary(gene.group$count)
+
+  ggplot(aes(x = gene, y = count), data= gene.group ) + 
+  geom_point()
+```
+**Descriptive Analysis for Mutation**
+```{r}
+tbl.mutation <- dbReadTable(conn = dbcon.hgmd, name = "mutation")#read mutation from db
+write.csv(tbl.mutation, file = "mutation.csv") #save the talbe splice into a file splice_tbl.csv
+
+tbl.mutationgene <- table(tbl.mutation$gene)
+tbl.genelessthan <- tbl.gene[tbl.gene > 30 ]
+barplot(tbl.genelessthan,xlab = paste("All Mutation genes, Total = ",sep = " ", toString(length(tbl.mutationgene))), ylab = "Frequency")
+
+gene.group <- tbl.mutation%>%
+  subset(!is.na(gene))%>%
+  group_by(gene)%>%
+  summarise(count = n())
+  
+tail(gene.group[order(gene.group$count),])
+gene.group$gene <- 1:5559 #number the genes for plotting
+p <- ggplot(aes(x = gene, y = count), data = subset(gene.group,count < 30)) +
+  geom_point(aes(alpha = 1/25))+
+  geom_smooth()+ xlab("gene index")+
+  ylab("frequency of the mutation gene < 30")
+
+quantile(gene.group$count,probs = c(0, 0.5,0.75,0.90,0.95,0.97,0.98,1))
+summary(gene.group$count)
+
+
+
+tbl.amino <- dbReadTable(conn = dbcon.hgmd, name = "amino")#read amino from db
+tbl_genes <- table(tbl.splice[,"gene"])
+names(tbl_genes) #table of the genes
+length(tbl_genes) #total gene counts
+length(tbl.splice[1,]);length(tbl.splice[,1])
+names(tbl.splice)
+set.seed(5555)
+#splice.con[sample(14849,100),c("gene","type","base")]
+#splice.columns <- dbGetQuery(conn = dbcon.hgmd, "show tables from hgmd_pro") 
+dbDisconnect(dbcon.hgmd)#Disconnect the database
+
+```
+Analysis of Disease and genes
+First, table is Grouped by disease and genes 
+
+```{r}
+
+gene.group <- tbl.splice%>%
+  subset(!is.na( gene))%>%
+  group_by(disease,gene)%>%
+  summarise(count = n())%>%
+  ungroup()
+unique.diseases <- unique(gene.group$disease)
+write.csv(gene.group,file="splice-disease-gene.csv")
+gene.group$disease <- 1:3334
+ggplot(data = subset(gene.group, count < 20), aes(x = disease, y = count)) + geom_point(aes(color = gene))
+```
+
+```{r}
+tbl =  dbReadTable(conn = dbcon.hgmd, name = "goterms")#read goterms table from db
+#group the table by go-term-acc, and count each terms frequency
+gotermsCount<- tbl%>% # passes tbl to subset
+  subset(!is.na(go_term_acc))%>% # passes non na go-terms to group_by function
+  group_by(go_term_acc)%>% # group the data frame by go-term-acc and pass to summarise function
+  summarise(frequency = n())%>% # summarise by counting frequency
+  arrange(frequency) # order the new grouped table by descending frequency count 
+
+
+goterms.group.type <- tbl%>%
+  subset(!is.na(go_term_type))%>%
+  group_by(go_term_acc,go_term_name)%>%
+  summarise(frequency = n())%>%
+  ungroup()%>%
+  arrange(frequency)
+  
+write.table(goterms.group.type,file = "goterms-name.txt",sep = "\t")
+write.table(gotermsCount,file="goterms-count.txt",sep = "\t")
+with(tbl, table(go_term_type))
+mean(gotermsCount$frequency)
+```
+
+
+

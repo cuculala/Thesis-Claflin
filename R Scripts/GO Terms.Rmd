@@ -1,0 +1,37 @@
+---
+title: "GO Term Analysis"
+author: "Kumar"
+date: "May 19, 2015"
+output: pdf_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#make sure local mysql server is running
+suppressMessages(library(DBI))
+suppressMessages(library(RMySQL))
+dbcon.hgmd <- dbConnect(MySQL(),user = "root", password = "paparam", host = "localhost", db = "hgmd_snp") # connect to database hgmd_pro in local server
+tbl <- dbReadTable(conn = dbcon.hgmd, name = "goterms")
+#group by Go term acc number 
+
+goterms.group <- tbl%>%
+  subset(!is.na(go_term_acc))%>% #selects records with no go_term_acc = NA 
+  group_by(go_term_acc)%>% #group record according to go_term_acc
+  summarise(count = n())%>% # count records for each go_term_acc
+  arrange(-count)# order by decreasing number of records
+
+#store the goterms.group into a text file
+write.table(goterms.group, file = "go-terms-acc-Count.txt", sep = "\t") 
+head(goterms.group)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

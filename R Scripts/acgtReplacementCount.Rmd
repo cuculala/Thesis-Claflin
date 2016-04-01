@@ -1,0 +1,35 @@
+---
+title: "ACGT-replacement-count"
+author: "Kumar"
+date: "May 31, 2015"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+suppressMessages(library(DBI))
+suppressMessages(library(RMySQL))
+library(dplyr)
+dbcon.hgmd <- dbConnect(MySQL(),user = "root", password = "paparam", host = "localhost", db = "hgmd_pro") # connect to database hgmd_pro in local server
+mut.tbl = dbReadTable(dbcon.hgmd,name = 'mutation')
+bases = mut.tbl[3]
+a =0; b = 0; c = 0; d = 0;
+rama = function(x){
+  strings = strsplit(x,"-")
+  first = strings[1]
+  second = strings[2]
+  return(second)
+}
+
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
